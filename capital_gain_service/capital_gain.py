@@ -14,32 +14,24 @@ logging.basicConfig(
 
 # Read stock service ports from environment variables
 STOCK_SERVICE_1_PORT = os.getenv("STOCK_SERVICE_1_PORT", "8000")
-STOCK_SERVICE_2_PORT = os.getenv("STOCK_SERVICE_2_PORT", "8000")
 STOCK_SERVICE_1_CONTAINER_NAME = os.getenv("STOCK_SERVICE_1_CONTAINER_NAME")
-STOCK_SERVICE_2_CONTAINER_NAME = os.getenv("STOCK_SERVICE_2_CONTAINER_NAME")
 
 # Dynamically construct URLs based on ports
 STOCK_SERVICE_1_URL = f"http://{STOCK_SERVICE_1_CONTAINER_NAME}:{STOCK_SERVICE_1_PORT}/stocks"
-STOCK_SERVICE_2_URL = f"http://{STOCK_SERVICE_2_CONTAINER_NAME}:{STOCK_SERVICE_2_PORT}/stocks"
 STOCK_SERVICE_1_VALUE_URL = f"http://{STOCK_SERVICE_1_CONTAINER_NAME}:{STOCK_SERVICE_1_PORT}/stock-value"
-STOCK_SERVICE_2_VALUE_URL = f"http://{STOCK_SERVICE_2_CONTAINER_NAME}:{STOCK_SERVICE_2_PORT}/stock-value"
 
 
 def _fetch_stock_data(portfolio):
-    """Fetch stock data from the appropriate service."""
+    """Fetch stock data from the (single) service."""
     stock_data_1 = []
-    stock_data_2 = []
     try:
         if not portfolio or portfolio == "stocks1":
             logging.info(f"Fetching data from {STOCK_SERVICE_1_URL}")
             stock_data_1 += requests.get(STOCK_SERVICE_1_URL).json()
-        if not portfolio or portfolio == "stocks2":
-            logging.info(f"Fetching data from {STOCK_SERVICE_2_URL}")
-            stock_data_2 += requests.get(STOCK_SERVICE_2_URL).json()
     except requests.RequestException as e:
         logging.error(f"Error fetching data from stock services: {e}")
         raise
-    return stock_data_1, stock_data_2
+    return stock_data_1
 
 
 def _filter_stocks(stock_data, numSharesGt, numSharesLt):
@@ -56,8 +48,8 @@ def _fetch_current_value(stock):
     """Fetch the current price for a specific stock based on its portfolio."""
     stock_value_url = (
         f"{STOCK_SERVICE_1_VALUE_URL}/{stock['id']}"
-        if stock.get('portfolio') == "stocks1"
-        else f"{STOCK_SERVICE_2_VALUE_URL}/{stock['id']}"
+        # if stock.get('portfolio') == "stocks1"
+        # else f"{STOCK_SERVICE_2_VALUE_URL}/{stock['id']}"
     )
     try:
         logging.info(f"Fetching current value for stock ID {stock['id']} from {stock_value_url}")
@@ -95,18 +87,13 @@ def get_capital_gains():
 
     try:
         # Fetch and process stock data
-        stock_data_1, stock_data_2 = _fetch_stock_data(portfolio)
+        stock_data_1 = _fetch_stock_data(portfolio)
         logging.info(f"Fetched stock data from portfolio 1: {stock_data_1}.")
-        logging.info(f"Fetched stock data from portfolio 2: {stock_data_2}.")
 
         # Add portfolio information
         for stock in stock_data_1: stock['portfolio'] = "stocks1"
-        for stock in stock_data_2: stock['portfolio'] = "stocks2"
 
-        # Combine stock data into one list
-        stock_data = stock_data_1 + stock_data_2
-
-        filtered_stocks = _filter_stocks(stock_data, numSharesGt, numSharesLt)
+        filtered_stocks = _filter_stocks(stock_data_1, numSharesGt, numSharesLt)
         logging.info(f"Filtered stock data: {filtered_stocks}")
 
         capital_gains = round(_calculate_capital_gains(filtered_stocks), 2)
